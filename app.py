@@ -1907,6 +1907,57 @@ def api_webhook():
     return "", 200
 
 # ==========================================
+# Startup Bootstrap (env-var driven auto-deploy & auto-connect)
+# ==========================================
+# When the following env vars are set in Render, the app no longer requires
+# any manual clicks in the Settings panel:
+#   - VAPI_PRIVATE_KEY             (required for auto-deploy)
+#   - GOOGLE_OAUTH_CLIENT_ID       (required for Google Calendar)
+#   - GOOGLE_OAUTH_CLIENT_SECRET   (required for Google Calendar)
+#   - GOOGLE_CREDENTIALS_JSON      (raw JSON string of google_credentials.json)
+#   - OAUTH_TOKEN_JSON             (raw JSON string of oauth_token.json)
+#   - GOOGLE_CALENDAR_ID           (e.g. you@gmail.com)
+#   - PHONE_NUMBER                 (Vapi phone number ID, optional)
+
+def _bootstrap_auto_deploy():
+    """Background thread: deploy the Vapi assistant on startup if not yet deployed."""
+    try:
+        config = get_config()
+        if config.get("assistant_id"):
+            print(f"[bootstrap] Assistant already deployed: {config['assistant_id']} — skipping auto-deploy.")
+            return
+        private_key = get_secret("vapi_private_key")
+        if not private_key:
+            print("[bootstrap] No VAPI_PRIVATE_KEY env var — skipping auto-deploy. Use the Settings panel.")
+            return
+        print("[bootstrap] No assistant_id in config — auto-deploying Vapi assistant...")
+        new_id, phone_msg = deploy_assistant_to_vapi(private_key, PUBLIC_URL, config)
+        print(f"[bootstrap] Auto-deploy complete: {new_id}{phone_msg}")
+    except Exception as e:
+        print(f"[bootstrap] Auto-deploy FAILED: {e}")
+
+
+def bootstrap_runtime():
+    """Log runtime state and kick off background auto-deploy if env vars are configured."""
+    print("=" * 60)
+    print("[bootstrap] Runtime configuration:")
+    print(f"  - VAPI_PRIVATE_KEY:        {'set' if get_secret('vapi_private_key') else 'MISSING'}")
+    print(f"  - VAPI_PUBLIC_KEY:         {'set' if get_secret('vapi_public_key') else 'MISSING'}")
+    print(f"  - GOOGLE_CALENDAR_ID:      {os.environ.get('GOOGLE_CALENDAR_ID') or '(unset)'}")
+    print(f"  - GOOGLE_CREDENTIALS_JSON: {'set' if get_secret('google_credentials_json') else 'MISSING'}")
+    print(f"  - OAUTH_TOKEN_JSON:        {'set' if get_secret('oauth_token_json') else 'MISSING (calendar will not work until connected once)'}")
+    print(f"  - GOOGLE_OAUTH_CLIENT_ID:  {'set' if get_secret('google_oauth_client_id') else 'MISSING'}")
+
+    if get_secret("oauth_token_json"):
+        print("[bootstrap] Google OAuth token loaded from env — Calendar auto-connected.")
+    if get_secret("vapi_private_key"):
+        # Run deploy in background so startup isn't blocked by the Vapi API.
+        t = threading.Thread(target=_bootstrap_auto_deploy, daemon=True)
+        t.start()
+    print("=" * 60)
+
+
+# ==========================================
 # Main Execution Entry
 # ==========================================
 
@@ -1916,8 +1967,15 @@ if __name__ == "__main__":
     init_calendar()
     init_logs()
     init_contacts()
-    
+
     # Start Flask Server
     port = int(os.environ.get("PORT", 8080))
     print(f"Starting Flask application on port {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
+else:
+    # Running under gunicorn (Render production): run bootstrap on module import
+    init_config()
+    init_calendar()
+    init_logs()
+    init_contacts()
+    bootstrap_runtime()

@@ -681,7 +681,7 @@ def create_google_calendar_event(service, calendar_id, candidate_name, candidate
             'createRequest': {
                 'requestId': f"meet-{int(time.time())}",
                 'conferenceSolutionKey': {
-                    'type': 'hangoutsMeet'
+                    'type': 'eventNamedMeeting'
                 }
             }
         }
@@ -905,7 +905,7 @@ def handle_book_slot(interviewer_name, date_str, time_str, interviewer_email=Non
                         'createRequest': {
                             'requestId': f"meet-{int(time.time())}",
                             'conferenceSolutionKey': {
-                                'type': 'hangoutsMeet'
+                                'type': 'eventNamedMeeting'
                             }
                         }
                     }

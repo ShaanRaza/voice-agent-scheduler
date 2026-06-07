@@ -1924,17 +1924,36 @@ def api_webhook():
 #   - SMTP_PASSWORD                (16-char Gmail app password)
 
 def _bootstrap_auto_deploy():
-    """Background thread: deploy the Vapi assistant on startup if not yet deployed."""
+    """Background thread: deploy (or re-deploy) the Vapi assistant on startup.
+
+    Validates the stored assistant_id against the current Vapi account. If it no
+    longer exists (e.g. user switched Vapi accounts), deploys a new one.
+    """
     try:
         config = get_config()
-        if config.get("assistant_id"):
-            print(f"[bootstrap] Assistant already deployed: {config['assistant_id']} — skipping auto-deploy.")
-            return
         private_key = get_secret("vapi_private_key")
         if not private_key:
             print("[bootstrap] No VAPI_PRIVATE_KEY env var — skipping auto-deploy. Use the Settings panel.")
             return
-        print("[bootstrap] No assistant_id in config — auto-deploying Vapi assistant...")
+
+        assistant_id = config.get("assistant_id")
+        if assistant_id:
+            # Quick validation: does the stored assistant still exist on this Vapi account?
+            try:
+                r = requests.get(
+                    f"https://api.vapi.ai/assistant/{assistant_id}",
+                    headers={"Authorization": f"Bearer {private_key}"},
+                    timeout=10
+                )
+                if r.status_code == 200:
+                    print(f"[bootstrap] Assistant {assistant_id} is valid — skipping redeploy.")
+                    return
+                else:
+                    print(f"[bootstrap] Stored assistant_id {assistant_id} returned HTTP {r.status_code} — re-deploying (likely new Vapi account).")
+            except Exception as e:
+                print(f"[bootstrap] Could not validate assistant_id ({e}) — re-deploying to be safe.")
+
+        print("[bootstrap] Auto-deploying Vapi assistant...")
         new_id, phone_msg = deploy_assistant_to_vapi(private_key, PUBLIC_URL, config)
         print(f"[bootstrap] Auto-deploy complete: {new_id}{phone_msg}")
     except Exception as e:

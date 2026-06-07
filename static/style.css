@@ -1291,10 +1291,10 @@ body {
 }
 
 /* ==========================================================================
-   Mobile / Phone Breakpoint (<= 640px)
+   Mobile / Tablet Breakpoint (<= 768px)
    ========================================================================== */
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
     /* Global tweaks */
     * {
         -webkit-tap-highlight-color: transparent;
@@ -1350,6 +1350,7 @@ body {
         align-items: center;
         gap: 0.6rem;
         min-width: 0;
+        padding-right: 48px; /* Leave space for the absolute settings gear */
     }
 
     .logo-icon {
@@ -1508,6 +1509,7 @@ body {
         font-size: 12px;
         scroll-snap-align: start;
         min-height: 36px;
+        flex-shrink: 0;
     }
 
     .calendar-container {
@@ -1861,8 +1863,8 @@ body {
     }
 }
 
-/* Extra-small phones (<= 380px) */
-@media (max-width: 380px) {
+/* Mobile Phones (<= 520px) */
+@media (max-width: 520px) {
     .dashboard-container {
         padding: 0.5rem;
         padding-top: max(0.5rem, env(safe-area-inset-top));

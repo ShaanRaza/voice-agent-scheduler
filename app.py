@@ -66,8 +66,18 @@ def get_config():
         "google_calendar_id": os.environ.get("GOOGLE_CALENDAR_ID", "").strip(),
         "phone_number": os.environ.get("PHONE_NUMBER", "").strip(),
         "smtp_email": os.environ.get("SMTP_EMAIL", "").strip(),
-        "assistant_id": os.environ.get("VAPI_ASSISTANT_ID", os.environ.get("ASSISTANT_ID", "")).strip(),
     }
+
+    # Defensive UUID check for assistant_id env var override
+    env_assistant_id = os.environ.get("VAPI_ASSISTANT_ID", os.environ.get("ASSISTANT_ID", "")).strip()
+    if env_assistant_id:
+        import uuid
+        try:
+            uuid.UUID(env_assistant_id)
+            env_overrides["assistant_id"] = env_assistant_id
+        except ValueError:
+            print(f"[config] Ignoring invalid UUID in VAPI_ASSISTANT_ID/ASSISTANT_ID env var: '{env_assistant_id}'")
+
     for k, v in env_overrides.items():
         if v:
             config[k] = v

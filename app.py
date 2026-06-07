@@ -61,6 +61,15 @@ def get_config():
         config = json.load(f)
         if "google_calendar_id" not in config:
             config["google_calendar_id"] = ""
+    # Env var override for non-sensitive settings (e.g. GOOGLE_CALENDAR_ID).
+    env_overrides = {
+        "google_calendar_id": os.environ.get("GOOGLE_CALENDAR_ID", "").strip(),
+        "phone_number": os.environ.get("PHONE_NUMBER", "").strip(),
+        "smtp_email": os.environ.get("SMTP_EMAIL", "").strip(),
+    }
+    for k, v in env_overrides.items():
+        if v:
+            config[k] = v
     # Merge in sensitive values from env/memory (never persisted to config.json).
     for key in RUNTIME_SECRETS:
         val = get_secret(key)

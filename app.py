@@ -1042,7 +1042,7 @@ def api_config():
 
     smtp_pass = data.get("smtp_password", "").strip()
     if smtp_pass:
-        config["smtp_password"] = smtp_pass
+        set_secret("smtp_password", smtp_pass)
 
     # Sensitive fields go to runtime memory only — never to config.json on disk.
     oauth_cid = data.get("google_oauth_client_id", "").strip()
@@ -1115,6 +1115,7 @@ RUNTIME_SECRETS = {
     "google_oauth_client_secret": None,
     "google_credentials_json": None,   # raw JSON string
     "oauth_token_json": None,          # raw JSON string
+    "smtp_password": None,             # SMTP app password (sensitive, never persisted)
 }
 
 _SECRET_ENV_MAP = {
@@ -1124,6 +1125,7 @@ _SECRET_ENV_MAP = {
     "google_oauth_client_secret": "GOOGLE_OAUTH_CLIENT_SECRET",
     "google_credentials_json": "GOOGLE_CREDENTIALS_JSON",
     "oauth_token_json": "OAUTH_TOKEN_JSON",
+    "smtp_password": "SMTP_PASSWORD",
 }
 
 
@@ -1918,6 +1920,8 @@ def api_webhook():
 #   - OAUTH_TOKEN_JSON             (raw JSON string of oauth_token.json)
 #   - GOOGLE_CALENDAR_ID           (e.g. you@gmail.com)
 #   - PHONE_NUMBER                 (Vapi phone number ID, optional)
+#   - SMTP_EMAIL                   (for SMTP backup email)
+#   - SMTP_PASSWORD                (16-char Gmail app password)
 
 def _bootstrap_auto_deploy():
     """Background thread: deploy the Vapi assistant on startup if not yet deployed."""
@@ -1947,6 +1951,9 @@ def bootstrap_runtime():
     print(f"  - GOOGLE_CREDENTIALS_JSON: {'set' if get_secret('google_credentials_json') else 'MISSING'}")
     print(f"  - OAUTH_TOKEN_JSON:        {'set' if get_secret('oauth_token_json') else 'MISSING (calendar will not work until connected once)'}")
     print(f"  - GOOGLE_OAUTH_CLIENT_ID:  {'set' if get_secret('google_oauth_client_id') else 'MISSING'}")
+    print(f"  - SMTP_EMAIL:              {os.environ.get('SMTP_EMAIL') or '(unset)'}")
+    print(f"  - SMTP_PASSWORD:           {'set' if get_secret('smtp_password') else 'MISSING (no SMTP backup email)'}")
+    print(f"  - PHONE_NUMBER:            {os.environ.get('PHONE_NUMBER') or '(unset)'}")
 
     if get_secret("oauth_token_json"):
         print("[bootstrap] Google OAuth token loaded from env — Calendar auto-connected.")

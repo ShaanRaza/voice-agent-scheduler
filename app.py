@@ -545,6 +545,10 @@ def get_calendar_service():
             from google.auth.transport.requests import Request
 
             info = json.loads(oauth_json)
+            # Quick sanity check: required fields for the Google auth library
+            for required in ("client_id", "client_secret", "refresh_token"):
+                if not info.get(required):
+                    raise ValueError(f"OAuth token is missing required field '{required}'. Re-do the Google Account connect flow and copy the fresh token to Render's OAUTH_TOKEN_JSON env var.")
             creds = UserCredentials.from_authorized_user_info(info, scopes=scopes)
             if creds.expired and creds.refresh_token:
                 print("Refreshing Google OAuth2 user access token...")
@@ -557,6 +561,7 @@ def get_calendar_service():
                 return build('calendar', 'v3', credentials=creds)
         except Exception as e:
             print(f"Error initializing Google Calendar client with user OAuth2: {e}")
+            print("  → Falling back to service account if GOOGLE_CREDENTIALS_JSON is set.")
 
     # 2. Fall back to service account (in-memory / env var — never on disk)
     creds_json = get_secret("google_credentials_json")
@@ -564,7 +569,9 @@ def get_calendar_service():
         try:
             from google.oauth2 import service_account as sa
             info = json.loads(creds_json)
+            sa_email = info.get("client_email", "(unknown)")
             creds = sa.Credentials.from_service_account_info(info, scopes=scopes)
+            print(f"[google] Using service account: {sa_email}")
             return build('calendar', 'v3', credentials=creds)
         except Exception as e:
             print(f"Error initializing Google Calendar client with service account: {e}")
@@ -1960,26 +1967,70 @@ def _bootstrap_auto_deploy():
         print(f"[bootstrap] Auto-deploy FAILED: {e}")
 
 
+def _verify_google_calendar():
+    """Background: verify the Google Calendar service account can list events.
+
+    Catches the most common setup mistake (service account not shared with the
+    calendar) at startup instead of at first booking attempt.
+    """
+    try:
+        creds_json = get_secret("google_credentials_json")
+        if not creds_json:
+            return  # user OAuth path; nothing to verify here
+        service = get_calendar_service()
+        if not service:
+            print("[bootstrap] Google Calendar: service account present but get_calendar_service() returned None.")
+            return
+        calendar_id = (os.environ.get("GOOGLE_CALENDAR_ID") or "").strip()
+        if not calendar_id:
+            print("[bootstrap] Google Calendar: service account OK, but GOOGLE_CALENDAR_ID not set.")
+            return
+        # Lightweight call — just list 1 upcoming event
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        service.events().list(calendarId=calendar_id, maxResults=1, timeMin=now, singleEvents=True).execute()
+        print(f"[bootstrap] Google Calendar: service account verified for '{calendar_id}' ✓")
+    except Exception as e:
+        err = str(e)
+        if "404" in err or "notFound" in err:
+            print(f"[bootstrap] Google Calendar: 404 — the service account email is not shared with calendar '{calendar_id}'.")
+            print(f"[bootstrap]   Fix: open Google Calendar → Settings → Share with specific people → add the service account email as 'Make changes to events'.")
+        elif "403" in err:
+            print(f"[bootstrap] Google Calendar: 403 — service account lacks permission. Check that Calendar API is enabled in the GCP project.")
+        else:
+            print(f"[bootstrap] Google Calendar verification failed: {e}")
+
+
 def bootstrap_runtime():
     """Log runtime state and kick off background auto-deploy if env vars are configured."""
     print("=" * 60)
     print("[bootstrap] Runtime configuration:")
     print(f"  - VAPI_PRIVATE_KEY:        {'set' if get_secret('vapi_private_key') else 'MISSING'}")
     print(f"  - VAPI_PUBLIC_KEY:         {'set' if get_secret('vapi_public_key') else 'MISSING'}")
+    print(f"  - PHONE_NUMBER:            {os.environ.get('PHONE_NUMBER') or '(unset)'}")
     print(f"  - GOOGLE_CALENDAR_ID:      {os.environ.get('GOOGLE_CALENDAR_ID') or '(unset)'}")
     print(f"  - GOOGLE_CREDENTIALS_JSON: {'set' if get_secret('google_credentials_json') else 'MISSING'}")
-    print(f"  - OAUTH_TOKEN_JSON:        {'set' if get_secret('oauth_token_json') else 'MISSING (calendar will not work until connected once)'}")
+    print(f"  - OAUTH_TOKEN_JSON:        {'set' if get_secret('oauth_token_json') else 'MISSING'}")
     print(f"  - GOOGLE_OAUTH_CLIENT_ID:  {'set' if get_secret('google_oauth_client_id') else 'MISSING'}")
     print(f"  - SMTP_EMAIL:              {os.environ.get('SMTP_EMAIL') or '(unset)'}")
     print(f"  - SMTP_PASSWORD:           {'set' if get_secret('smtp_password') else 'MISSING (no SMTP backup email)'}")
-    print(f"  - PHONE_NUMBER:            {os.environ.get('PHONE_NUMBER') or '(unset)'}")
 
-    if get_secret("oauth_token_json"):
-        print("[bootstrap] Google OAuth token loaded from env — Calendar auto-connected.")
+    # Show which Google auth method is active
+    if get_secret("google_credentials_json"):
+        print("[bootstrap] Google auth: SERVICE ACCOUNT (recommended, no refresh_token issues).")
+    elif get_secret("oauth_token_json"):
+        print("[bootstrap] Google auth: user OAuth token. (Will fail if token is missing refresh_token.)")
+    else:
+        print("[bootstrap] Google auth: NONE — Calendar will not work.")
+
     if get_secret("vapi_private_key"):
         # Run deploy in background so startup isn't blocked by the Vapi API.
         t = threading.Thread(target=_bootstrap_auto_deploy, daemon=True)
         t.start()
+
+    # Verify Google Calendar connectivity in the background
+    t = threading.Thread(target=_verify_google_calendar, daemon=True)
+    t.start()
+
     print("=" * 60)
 
 

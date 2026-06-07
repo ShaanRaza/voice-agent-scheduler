@@ -1041,6 +1041,47 @@ def api_config():
     save_config(config)
     return jsonify({"success": True, "message": "Credentials updated successfully."})
 
+@app.route("/api/upload-credentials", methods=["POST"])
+def api_upload_credentials():
+    data = request.json or {}
+    file_type = data.get("type", "").strip()
+    content = data.get("content", "").strip()
+
+    if file_type not in ("google_credentials", "oauth_token"):
+        return jsonify({"success": False, "message": "Invalid file type. Must be 'google_credentials' or 'oauth_token'."}), 400
+
+    if not content:
+        return jsonify({"success": False, "message": "No file content provided."}), 400
+
+    try:
+        parsed = json.loads(content)
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Invalid JSON: {e}"}), 400
+
+    target_dir = DATA_DIR if DATA_DIR != "." else "."
+    target_path = os.path.join(target_dir, f"{file_type}.json")
+
+    try:
+        with open(target_path, "w") as f:
+            json.dump(parsed, f, indent=2)
+        print(f"Uploaded {file_type}.json ({len(content)} bytes) to {target_path}")
+        return jsonify({"success": True, "message": f"{file_type}.json uploaded successfully."})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Failed to save file: {e}"}), 500
+
+@app.route("/api/credentials-status")
+def api_credentials_status():
+    creds_path = os.path.join(DATA_DIR, "google_credentials.json") if DATA_DIR != "." else "google_credentials.json"
+    oauth_path = os.path.join(DATA_DIR, "oauth_token.json") if DATA_DIR != "." else "oauth_token.json"
+    if DATA_DIR != "." and not os.path.exists(creds_path) and os.path.exists("google_credentials.json"):
+        creds_path = "google_credentials.json"
+    if DATA_DIR != "." and not os.path.exists(oauth_path) and os.path.exists("oauth_token.json"):
+        oauth_path = "oauth_token.json"
+    return jsonify({
+        "google_credentials_uploaded": os.path.exists(creds_path),
+        "oauth_token_uploaded": os.path.exists(oauth_path),
+    })
+
 @app.route("/api/calendar")
 def api_calendar():
     return jsonify(get_calendar())

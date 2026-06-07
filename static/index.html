@@ -233,6 +233,22 @@
                     <i class="fa-solid fa-cloud-arrow-up"></i> Deploy Agent
                 </button>
             </div>
+
+            <div class="credentials-upload-section" style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <h4 style="margin-bottom: 10px;"><i class="fa-solid fa-cloud-arrow-up"></i> Google Credentials</h4>
+                <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 12px;">Upload the credential JSON files you saved locally so the deployed app can use Google Calendar.</p>
+                <div class="form-group">
+                    <label for="google-credentials-file" style="font-size: 13px;">google_credentials.json <span id="google-credentials-status" style="font-size: 11px; color: rgba(255,255,255,0.5);">(not uploaded)</span></label>
+                    <input type="file" id="google-credentials-file" accept=".json" style="font-size: 12px; color: rgba(255,255,255,0.8);">
+                </div>
+                <div class="form-group">
+                    <label for="oauth-token-file" style="font-size: 13px;">oauth_token.json <span id="oauth-token-status" style="font-size: 11px; color: rgba(255,255,255,0.5);">(not uploaded)</span></label>
+                    <input type="file" id="oauth-token-file" accept=".json" style="font-size: 12px; color: rgba(255,255,255,0.8);">
+                </div>
+                <button id="btn-upload-credentials" class="btn btn-secondary" style="width: 100%; margin-top: 5px;">
+                    <i class="fa-solid fa-upload"></i> Upload Credentials
+                </button>
+            </div>
             
             <div class="danger-zone" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
                 <h4 style="color: #ff5252; margin-bottom: 10px;">Danger Zone</h4>

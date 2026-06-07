@@ -251,6 +251,80 @@ async function deployAssistant() {
     }
 }
 
+async function fetchCredentialsStatus() {
+    try {
+        const res = await fetch('/api/credentials-status');
+        const data = await res.json();
+        const gStatus = document.getElementById('google-credentials-status');
+        const oStatus = document.getElementById('oauth-token-status');
+        if (gStatus) {
+            gStatus.textContent = data.google_credentials_uploaded ? '(uploaded)' : '(not uploaded)';
+            gStatus.style.color = data.google_credentials_uploaded ? 'rgb(0, 230, 118)' : 'rgba(255,255,255,0.5)';
+        }
+        if (oStatus) {
+            oStatus.textContent = data.oauth_token_uploaded ? '(uploaded)' : '(not uploaded)';
+            oStatus.style.color = data.oauth_token_uploaded ? 'rgb(0, 230, 118)' : 'rgba(255,255,255,0.5)';
+        }
+    } catch (err) {
+        console.error('Failed to fetch credentials status:', err);
+    }
+}
+
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsText(file);
+    });
+}
+
+async function uploadOneCredential(type, file) {
+    if (!file) return null;
+    let content;
+    try {
+        content = await readFileAsText(file);
+    } catch (e) {
+        return { type, success: false, message: e.message };
+    }
+    try {
+        const res = await fetch('/api/upload-credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, content })
+        });
+        return await res.json();
+    } catch (e) {
+        return { type, success: false, message: 'Network error: ' + e.message };
+    }
+}
+
+async function uploadCredentials() {
+    const gFile = document.getElementById('google-credentials-file').files[0];
+    const oFile = document.getElementById('oauth-token-file').files[0];
+
+    if (!gFile && !oFile) {
+        alert('Please select at least one JSON file to upload.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-upload-credentials');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+
+    const results = [];
+    if (gFile) results.push(await uploadOneCredential('google_credentials', gFile));
+    if (oFile) results.push(await uploadOneCredential('oauth_token', oFile));
+
+    const allSuccess = results.every(r => r && r.success);
+    const summary = results.map(r => r ? `${r.type}: ${r.message}` : '').join('\n');
+    alert(allSuccess ? 'Upload complete!\n\n' + summary : 'Upload had issues:\n\n' + summary);
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload Credentials';
+    await fetchCredentialsStatus();
+}
+
 async function fetchCalendar() {
     try {
         const res = await fetch('/api/calendar');
@@ -671,6 +745,11 @@ function setupEventListeners() {
     btnDeploy.onclick = deployAssistant;
     btnResetCalendar.onclick = resetCalendar;
     btnCall.onclick = toggleWebCall;
+
+    const btnUploadCredentials = document.getElementById('btn-upload-credentials');
+    if (btnUploadCredentials) {
+        btnUploadCredentials.onclick = uploadCredentials;
+    }
     
     // Collapsible Settings Drawer
     const btnToggleSettings = document.getElementById('btn-toggle-settings');
@@ -725,16 +804,19 @@ function setupEventListeners() {
 
 async function initializeApp() {
     setupEventListeners();
-    
+
     // Initial fetches
     await fetchStatus();
+    await fetchCredentialsStatus();
     await fetchCalendar();
     await fetchLogs();
     await fetchContacts();
-    
+
     // Start Polling loops
     // Status loop: every 5 seconds
     setInterval(fetchStatus, 5000);
+    // Credentials status loop: every 10 seconds
+    setInterval(fetchCredentialsStatus, 10000);
     // Calendar loop: every 3 seconds
     setInterval(fetchCalendar, 3000);
     // Logs loop: every 2 seconds

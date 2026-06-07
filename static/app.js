@@ -629,23 +629,18 @@ function initVapi() {
         return null;
     }
 
-    console.log('Initializing Vapi Web SDK via official html-script-tag bundle…');
+    console.log('Initializing Vapi Web SDK (Core)...');
     try {
-        if (!window.vapiSDK || typeof window.vapiSDK.run !== 'function') {
-            console.error('window.vapiSDK.run is not available — script did not load');
+        const VapiClass = window.Vapi;
+        if (!VapiClass) {
+            console.error('window.Vapi is not available — script did not load');
             return null;
         }
 
-        // The official html-script-tag bundle exposes vapiSDK.run({apiKey, assistant, config})
-        // and returns a Vapi instance with .on() / .start() / .stop() / .send() / .say().
-        vapiInstance = window.vapiSDK.run({
-            apiKey: actualPubKey,
-            assistant: assistantId,
-            config: {}
-        });
+        vapiInstance = new VapiClass(actualPubKey);
 
         if (!vapiInstance || typeof vapiInstance.on !== 'function') {
-            console.error('vapiSDK.run did not return a usable instance', vapiInstance);
+            console.error('Failed to create a usable Vapi instance', vapiInstance);
             return null;
         }
 

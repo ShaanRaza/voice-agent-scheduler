@@ -66,6 +66,7 @@ def get_config():
         "google_calendar_id": os.environ.get("GOOGLE_CALENDAR_ID", "").strip(),
         "phone_number": os.environ.get("PHONE_NUMBER", "").strip(),
         "smtp_email": os.environ.get("SMTP_EMAIL", "").strip(),
+        "assistant_id": os.environ.get("VAPI_ASSISTANT_ID", os.environ.get("ASSISTANT_ID", "")).strip(),
     }
     for k, v in env_overrides.items():
         if v:
@@ -2006,6 +2007,7 @@ def bootstrap_runtime():
     print("[bootstrap] Runtime configuration:")
     print(f"  - VAPI_PRIVATE_KEY:        {'set' if get_secret('vapi_private_key') else 'MISSING'}")
     print(f"  - VAPI_PUBLIC_KEY:         {'set' if get_secret('vapi_public_key') else 'MISSING'}")
+    print(f"  - VAPI_ASSISTANT_ID:       {os.environ.get('VAPI_ASSISTANT_ID') or os.environ.get('ASSISTANT_ID') or '(unset)'}")
     print(f"  - PHONE_NUMBER:            {os.environ.get('PHONE_NUMBER') or '(unset)'}")
     print(f"  - GOOGLE_CALENDAR_ID:      {os.environ.get('GOOGLE_CALENDAR_ID') or '(unset)'}")
     print(f"  - GOOGLE_CREDENTIALS_JSON: {'set' if get_secret('google_credentials_json') else 'MISSING'}")

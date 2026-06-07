@@ -616,22 +616,39 @@ function renderActiveTranscript(logs) {
 
 function initVapi() {
     if (vapiInstance) return vapiInstance;
-    
-    // Get actual public key from backend response if configured, fallback to input field
+
     const actualPubKey = cachedStatus.vapi_public_key || publicKeyInput.value.trim();
-    
+    const assistantId = cachedStatus.assistant_id;
+
     if (!actualPubKey) {
         console.error('No Vapi Public Key available for Web Call');
         return null;
     }
-    
-    console.log('Initializing Vapi Web SDK...');
-    // The Vapi script exposes Vapi globally (lowercase vapi or class Vapi)
-    // Based on unpkg search: const vapi = new Vapi(publicKey)
+    if (!assistantId) {
+        console.error('No Vapi Assistant ID available for Web Call');
+        return null;
+    }
+
+    console.log('Initializing Vapi Web SDK via official html-script-tag bundle…');
     try {
-        const VapiClass = window.Vapi;
-        vapiInstance = new VapiClass(actualPubKey);
-        
+        if (!window.vapiSDK || typeof window.vapiSDK.run !== 'function') {
+            console.error('window.vapiSDK.run is not available — script did not load');
+            return null;
+        }
+
+        // The official html-script-tag bundle exposes vapiSDK.run({apiKey, assistant, config})
+        // and returns a Vapi instance with .on() / .start() / .stop() / .send() / .say().
+        vapiInstance = window.vapiSDK.run({
+            apiKey: actualPubKey,
+            assistant: assistantId,
+            config: {}
+        });
+
+        if (!vapiInstance || typeof vapiInstance.on !== 'function') {
+            console.error('vapiSDK.run did not return a usable instance', vapiInstance);
+            return null;
+        }
+
         // Listeners
         vapiInstance.on('call-start', (call) => {
             isCallActive = true;
@@ -644,15 +661,15 @@ function initVapi() {
             callStatusLabel.textContent = 'Connected (Live)';
             callStatusLabel.className = 'call-status-label connected';
             waveformContainer.classList.add('active');
-            
-            // Clear inputs temporarily to prevent middle-call change
+            hideCallError();
+
             callerNameInput.disabled = true;
             callerPhoneInput.disabled = true;
-            
+
             startMicAnalysis();
             startCallTimer();
         });
-        
+
         vapiInstance.on('call-end', () => {
             isCallActive = false;
             hasConnected = false;
@@ -661,27 +678,25 @@ function initVapi() {
             callStatusLabel.textContent = 'Ready to Call';
             callStatusLabel.className = 'call-status-label ready';
             waveformContainer.classList.remove('active');
-            
+
             callerNameInput.disabled = false;
             callerPhoneInput.disabled = false;
-            
+
             stopMicAnalysis();
             stopCallTimer();
-            
-            // Re-fetch logs to update status immediately
+
             setTimeout(fetchLogs, 1000);
             setTimeout(fetchCalendar, 1500);
         });
-        
+
         vapiInstance.on('error', (err) => {
             console.error('Vapi Web SDK Error:', err);
-            
-            // If the call was already successfully connected, ignore normal tear-down errors.
+
             if (hasConnected) {
                 return;
             }
-            
-            alert('Call Error: ' + (err.message || 'Failed to connect. Make sure your browser microphone permission is granted.'));
+
+            showCallError(err);
             isCallActive = false;
             hasConnected = false;
             btnCall.classList.remove('active-call');
@@ -689,24 +704,24 @@ function initVapi() {
             callStatusLabel.textContent = 'Call Failed';
             callStatusLabel.className = 'call-status-label';
             waveformContainer.classList.remove('active');
-            
+
             callerNameInput.disabled = false;
             callerPhoneInput.disabled = false;
-            
+
             stopMicAnalysis();
             stopCallTimer();
         });
-        
+
         vapiInstance.on('volume-level', (level) => {
-            assistantVolume = level; // Feed the assistant volume to the canvas waveform
+            assistantVolume = level;
         });
-        
+
         vapiInstance.on('message', (message) => {
             if (message.type === 'transcript') {
                 const role = message.role;
                 let text = sanitizeSpelling(message.transcript);
                 const isFinal = message.transcriptType === 'final';
-                
+
                 if (isFinal) {
                     if (text && text.trim()) {
                         localActiveTranscript.push({ role, text });
@@ -719,18 +734,56 @@ function initVapi() {
                         currentPartialTranscript = null;
                     }
                 }
-                
+
                 if (isCallActive) {
                     renderActiveTranscript(cachedLogs);
                 }
             }
         });
-        
+
         return vapiInstance;
     } catch (e) {
         console.error('Failed to initialize Vapi Web SDK:', e);
         return null;
     }
+}
+
+function describeVapiError(err) {
+    if (!err) return 'Unknown error (no error object received from Vapi).';
+    if (typeof err === 'string') return err;
+    const parts = [];
+    if (err.message) parts.push(err.message);
+    if (err.error && err.error.message) parts.push(err.error.message);
+    if (err.statusCode || err.status) parts.push(`HTTP ${err.statusCode || err.status}`);
+    if (err.endpoint) parts.push(`(${err.endpoint})`);
+    if (err.errorMsg) parts.push(err.errorMsg);
+    if (parts.length === 0) {
+        try {
+            return 'Vapi error: ' + JSON.stringify(err);
+        } catch (_) {
+            return 'Vapi error: ' + String(err);
+        }
+    }
+    return parts.join(' — ');
+}
+
+function showCallError(err) {
+    let host = document.getElementById('call-error-banner');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'call-error-banner';
+        host.className = 'call-error-banner';
+        const dialer = document.getElementById('dialer-card') || document.querySelector('.dialer-card') || btnCall.parentElement;
+        if (dialer) dialer.appendChild(host);
+    }
+    host.textContent = '⚠ ' + describeVapiError(err);
+    host.classList.add('visible');
+    console.error('[vapi] detailed error:', err);
+}
+
+function hideCallError() {
+    const host = document.getElementById('call-error-banner');
+    if (host) host.classList.remove('visible');
 }
 
 function toggleWebCall() {

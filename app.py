@@ -61,7 +61,12 @@ def get_config():
         config = json.load(f)
         if "google_calendar_id" not in config:
             config["google_calendar_id"] = ""
-        return config
+    # Merge in sensitive values from env/memory (never persisted to config.json).
+    for key in RUNTIME_SECRETS:
+        val = get_secret(key)
+        if val:
+            config[key] = val
+    return config
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
@@ -522,54 +527,40 @@ def add_log_message(call_id, role, text):
 
 def get_calendar_service():
     scopes = ['https://www.googleapis.com/auth/calendar']
-    
-    # 1. Try to load user credentials from oauth_token.json (Shaan's personal account)
-    oauth_path = os.path.join(DATA_DIR, "oauth_token.json")
-    if not os.path.exists(oauth_path) and os.path.exists("oauth_token.json"):
-        import shutil
-        try:
-            shutil.copy("oauth_token.json", oauth_path)
-        except Exception:
-            pass
-            
-    if os.path.exists(oauth_path):
+
+    # 1. Try user OAuth token (in-memory / env var — never on disk)
+    oauth_json = get_secret("oauth_token_json")
+    if oauth_json:
         try:
             from google.oauth2.credentials import Credentials as UserCredentials
             from google.auth.transport.requests import Request
-            
-            with open(oauth_path, "r") as f:
-                info = json.load(f)
-                
+
+            info = json.loads(oauth_json)
             creds = UserCredentials.from_authorized_user_info(info, scopes=scopes)
             if creds.expired and creds.refresh_token:
                 print("Refreshing Google OAuth2 user access token...")
                 creds.refresh(Request())
                 info["token"] = creds.token
-                with open(oauth_path, "w") as f:
-                    json.dump(info, f, indent=2)
-                print("Successfully refreshed and saved Google OAuth2 user access token.")
-                
+                set_secret("oauth_token_json", json.dumps(info))
+                print("Refreshed token kept in memory only.")
+
             if creds.valid:
-                service = build('calendar', 'v3', credentials=creds)
-                return service
+                return build('calendar', 'v3', credentials=creds)
         except Exception as e:
             print(f"Error initializing Google Calendar client with user OAuth2: {e}")
-            # Fall back to service account
-            
-    # 2. Fall back to service account google_credentials.json
-    creds_path = os.path.join(DATA_DIR, "google_credentials.json")
-    if not os.path.exists(creds_path):
-        creds_path = "google_credentials.json"
-        
-    if not os.path.exists(creds_path):
-        return None
-    try:
-        creds = service_account.Credentials.from_service_account_file(creds_path, scopes=scopes)
-        service = build('calendar', 'v3', credentials=creds)
-        return service
-    except Exception as e:
-        print(f"Error initializing Google Calendar client with service account: {e}")
-        return None
+
+    # 2. Fall back to service account (in-memory / env var — never on disk)
+    creds_json = get_secret("google_credentials_json")
+    if creds_json:
+        try:
+            from google.oauth2 import service_account as sa
+            info = json.loads(creds_json)
+            creds = sa.Credentials.from_service_account_info(info, scopes=scopes)
+            return build('calendar', 'v3', credentials=creds)
+        except Exception as e:
+            print(f"Error initializing Google Calendar client with service account: {e}")
+
+    return None
 
 def get_google_calendar_events(service, calendar_id):
     if not service or not calendar_id:
@@ -1009,16 +1000,18 @@ def api_status():
     config = get_config()
     return jsonify({
         "public_url": PUBLIC_URL,
-        "vapi_private_key_configured": bool(config.get("vapi_private_key")),
-        "vapi_public_key_configured": bool(config.get("vapi_public_key")),
-        "vapi_public_key": config.get("vapi_public_key"),
+        "vapi_private_key_configured": secret_configured("vapi_private_key"),
+        "vapi_public_key_configured": secret_configured("vapi_public_key"),
+        "vapi_public_key": get_secret("vapi_public_key") or "",
         "assistant_id": config.get("assistant_id"),
         "phone_number": config.get("phone_number"),
         "google_calendar_id": config.get("google_calendar_id", ""),
         "smtp_email": config.get("smtp_email", ""),
         "smtp_password_configured": bool(config.get("smtp_password")),
-        "google_oauth_client_id_configured": bool(config.get("google_oauth_client_id")),
-        "google_oauth_client_secret_configured": bool(config.get("google_oauth_client_secret")),
+        "google_oauth_client_id_configured": secret_configured("google_oauth_client_id"),
+        "google_oauth_client_secret_configured": secret_configured("google_oauth_client_secret"),
+        "google_credentials_configured": secret_configured("google_credentials_json"),
+        "oauth_token_configured": secret_configured("oauth_token_json"),
         "is_deployed": bool(config.get("assistant_id"))
     })
 
@@ -1026,14 +1019,14 @@ def api_status():
 def api_config():
     data = request.json or {}
     config = get_config()
-    
+
     p_key = data.get("vapi_private_key", "").strip()
     pub_key = data.get("vapi_public_key", "").strip()
     if p_key:
-        config["vapi_private_key"] = p_key
+        set_secret("vapi_private_key", p_key)
     if pub_key:
-        config["vapi_public_key"] = pub_key
-        
+        set_secret("vapi_public_key", pub_key)
+
     config["phone_number"] = data.get("phone_number", "").strip()
     config["google_calendar_id"] = data.get("google_calendar_id", "").strip()
     config["smtp_email"] = data.get("smtp_email", "").strip()
@@ -1042,15 +1035,22 @@ def api_config():
     if smtp_pass:
         config["smtp_password"] = smtp_pass
 
+    # Sensitive fields go to runtime memory only — never to config.json on disk.
     oauth_cid = data.get("google_oauth_client_id", "").strip()
     if oauth_cid:
-        config["google_oauth_client_id"] = oauth_cid
+        set_secret("google_oauth_client_id", oauth_cid)
     oauth_sec = data.get("google_oauth_client_secret", "").strip()
     if oauth_sec:
-        config["google_oauth_client_secret"] = oauth_sec
+        set_secret("google_oauth_client_secret", oauth_sec)
+    p_key = data.get("vapi_private_key", "").strip()
+    if p_key:
+        set_secret("vapi_private_key", p_key)
+    pub_key = data.get("vapi_public_key", "").strip()
+    if pub_key:
+        set_secret("vapi_public_key", pub_key)
 
     save_config(config)
-    return jsonify({"success": True, "message": "Credentials updated successfully."})
+    return jsonify({"success": True, "message": "Non-sensitive settings saved. Sensitive values are stored in memory only (use env vars on Render to persist across restarts)."})
 
 @app.route("/api/upload-credentials", methods=["POST"])
 def api_upload_credentials():
@@ -1069,28 +1069,17 @@ def api_upload_credentials():
     except Exception as e:
         return jsonify({"success": False, "message": f"Invalid JSON: {e}"}), 400
 
-    target_dir = DATA_DIR if DATA_DIR != "." else "."
-    target_path = os.path.join(target_dir, f"{file_type}.json")
+    secret_key = "google_credentials_json" if file_type == "google_credentials" else "oauth_token_json"
+    set_secret(secret_key, json.dumps(parsed))
+    print(f"{file_type}.json stored in memory ({len(content)} bytes). NOT written to disk.")
+    return jsonify({"success": True, "message": f"{file_type}.json stored in memory only (will be lost on restart). Set GOOGLE_CREDENTIALS_JSON / OAUTH_TOKEN_JSON env var on Render to persist."})
 
-    try:
-        with open(target_path, "w") as f:
-            json.dump(parsed, f, indent=2)
-        print(f"Uploaded {file_type}.json ({len(content)} bytes) to {target_path}")
-        return jsonify({"success": True, "message": f"{file_type}.json uploaded successfully."})
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Failed to save file: {e}"}), 500
 
 @app.route("/api/credentials-status")
 def api_credentials_status():
-    creds_path = os.path.join(DATA_DIR, "google_credentials.json") if DATA_DIR != "." else "google_credentials.json"
-    oauth_path = os.path.join(DATA_DIR, "oauth_token.json") if DATA_DIR != "." else "oauth_token.json"
-    if DATA_DIR != "." and not os.path.exists(creds_path) and os.path.exists("google_credentials.json"):
-        creds_path = "google_credentials.json"
-    if DATA_DIR != "." and not os.path.exists(oauth_path) and os.path.exists("oauth_token.json"):
-        oauth_path = "oauth_token.json"
     return jsonify({
-        "google_credentials_uploaded": os.path.exists(creds_path),
-        "oauth_token_uploaded": os.path.exists(oauth_path),
+        "google_credentials_uploaded": secret_configured("google_credentials_json"),
+        "oauth_token_uploaded": secret_configured("oauth_token_json"),
     })
 
 # ==========================================
@@ -1101,13 +1090,58 @@ OAUTH_SCOPES = ['https://www.googleapis.com/auth/calendar']
 # Maps OAuth state token -> code_verifier, so the callback can complete PKCE.
 OAUTH_FLOW_STATE = {}
 
+# ==========================================
+# Runtime Secrets (NOT persisted to disk)
+# ==========================================
+# Sensitive values are kept in memory only. They can be supplied via:
+#   1. Environment variables (persisted across restarts in Render dashboard)
+#   2. The Settings panel (in-memory only, lost on restart/redeploy)
+# This avoids writing secrets to config.json or uploading credential files
+# to the server's filesystem.
 
-def _build_oauth_client_config(config):
+RUNTIME_SECRETS = {
+    "vapi_private_key": None,
+    "vapi_public_key": None,
+    "google_oauth_client_id": None,
+    "google_oauth_client_secret": None,
+    "google_credentials_json": None,   # raw JSON string
+    "oauth_token_json": None,          # raw JSON string
+}
+
+_SECRET_ENV_MAP = {
+    "vapi_private_key": "VAPI_PRIVATE_KEY",
+    "vapi_public_key": "VAPI_PUBLIC_KEY",
+    "google_oauth_client_id": "GOOGLE_OAUTH_CLIENT_ID",
+    "google_oauth_client_secret": "GOOGLE_OAUTH_CLIENT_SECRET",
+    "google_credentials_json": "GOOGLE_CREDENTIALS_JSON",
+    "oauth_token_json": "OAUTH_TOKEN_JSON",
+}
+
+
+def get_secret(key):
+    """Read a secret from env var first, then runtime memory."""
+    env_name = _SECRET_ENV_MAP.get(key)
+    if env_name and os.environ.get(env_name):
+        return os.environ.get(env_name)
+    return RUNTIME_SECRETS.get(key)
+
+
+def set_secret(key, value):
+    """Store a secret in runtime memory only. Does NOT touch disk."""
+    if key in RUNTIME_SECRETS:
+        RUNTIME_SECRETS[key] = value
+
+
+def secret_configured(key):
+    return bool(get_secret(key))
+
+
+def _build_oauth_client_config():
     redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
     return {
         "web": {
-            "client_id": config.get("google_oauth_client_id", "").strip(),
-            "client_secret": config.get("google_oauth_client_secret", "").strip(),
+            "client_id": (get_secret("google_oauth_client_id") or "").strip(),
+            "client_secret": (get_secret("google_oauth_client_secret") or "").strip(),
             "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
             "token_uri": "https://oauth2.googleapis.com/token",
             "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
@@ -1119,9 +1153,8 @@ def _build_oauth_client_config(config):
 @app.route("/api/auth/google/start")
 def api_auth_google_start():
     global OAUTH_FLOW_STATE
-    config = get_config()
-    client_id = config.get("google_oauth_client_id", "").strip()
-    client_secret = config.get("google_oauth_client_secret", "").strip()
+    client_id = (get_secret("google_oauth_client_id") or "").strip()
+    client_secret = (get_secret("google_oauth_client_secret") or "").strip()
 
     if not client_id or not client_secret:
         return jsonify({
@@ -1137,7 +1170,7 @@ def api_auth_google_start():
             "message": "google-auth-oauthlib is not installed."
         }), 500
 
-    client_config, redirect_uri = _build_oauth_client_config(config)
+    client_config, redirect_uri = _build_oauth_client_config()
     flow = Flow.from_client_config(client_config, scopes=OAUTH_SCOPES, redirect_uri=redirect_uri)
     auth_url, state = flow.authorization_url(
         access_type='offline',
@@ -1151,9 +1184,8 @@ def api_auth_google_start():
 @app.route("/api/auth/google/callback")
 def api_auth_google_callback():
     global OAUTH_FLOW_STATE
-    config = get_config()
-    client_id = config.get("google_oauth_client_id", "").strip()
-    client_secret = config.get("google_oauth_client_secret", "").strip()
+    client_id = (get_secret("google_oauth_client_id") or "").strip()
+    client_secret = (get_secret("google_oauth_client_secret") or "").strip()
 
     if not client_id or not client_secret:
         return "Error: OAuth client not configured.", 400
@@ -1166,7 +1198,7 @@ def api_auth_google_callback():
     state = request.args.get("state")
     code_verifier = OAUTH_FLOW_STATE.pop(state, None) if state else None
 
-    client_config, redirect_uri = _build_oauth_client_config(config)
+    client_config, redirect_uri = _build_oauth_client_config()
     flow = Flow.from_client_config(
         client_config,
         scopes=OAUTH_SCOPES,
@@ -1193,14 +1225,8 @@ def api_auth_google_callback():
         "type": "authorized_user"
     }
 
-    target_dir = DATA_DIR if DATA_DIR != "." else "."
-    target_path = os.path.join(target_dir, "oauth_token.json")
-    try:
-        with open(target_path, "w") as f:
-            json.dump(token_data, f, indent=2)
-        print(f"OAuth token saved to {target_path}")
-    except Exception as e:
-        return f"<h2>Failed to save token</h2><p>{e}</p>", 500
+    set_secret("oauth_token_json", json.dumps(token_data))
+    print("OAuth token stored in memory only (NOT written to disk).")
 
     return f"""<!DOCTYPE html>
 <html><head><title>Google Connected</title>

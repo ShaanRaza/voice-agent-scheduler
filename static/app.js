@@ -64,6 +64,8 @@ const googleCalendarInput = document.getElementById('google-calendar-id');
 const meetingLinkInput = document.getElementById('meeting-link');
 const smtpEmailInput = document.getElementById('smtp-email');
 const smtpPasswordInput = document.getElementById('smtp-password');
+const googleOauthClientIdInput = document.getElementById('google-oauth-client-id');
+const googleOauthClientSecretInput = document.getElementById('google-oauth-client-secret');
 const calendarLinkRow = document.getElementById('calendar-link-row');
 const calendarLinkText = document.getElementById('calendar-link-text');
 
@@ -183,6 +185,16 @@ async function fetchStatus() {
         if (smtpPasswordInput && !smtpPasswordInput.value && status.smtp_password_configured) {
             smtpPasswordInput.placeholder = '•••••••••••••••• (Saved)';
         }
+        if (googleOauthClientIdInput && !googleOauthClientIdInput.value && status.google_oauth_client_id_configured) {
+            googleOauthClientIdInput.placeholder = '•••••••••••••••• (Saved)';
+        }
+        if (googleOauthClientSecretInput && !googleOauthClientSecretInput.value && status.google_oauth_client_secret_configured) {
+            googleOauthClientSecretInput.placeholder = '•••••••••••••••• (Saved)';
+        }
+        const redirectEl = document.getElementById('oauth-redirect-uri');
+        if (redirectEl && status.public_url) {
+            redirectEl.textContent = `${status.public_url}/api/auth/google/callback`;
+        }
         
     } catch (err) {
         console.error('Failed to fetch status:', err);
@@ -198,13 +210,15 @@ async function saveConfig() {
     const googleCal = googleCalendarInput.value.trim();
     const smtpEmail = smtpEmailInput ? smtpEmailInput.value.trim() : "";
     const smtpPassword = smtpPasswordInput ? smtpPasswordInput.value.trim() : "";
-    
+    const oauthCid = googleOauthClientIdInput ? googleOauthClientIdInput.value.trim() : "";
+    const oauthSec = googleOauthClientSecretInput ? googleOauthClientSecretInput.value.trim() : "";
+
     // Only throw alert if keys are completely missing from both inputs and backend
     if ((!pKey && !cachedStatus.vapi_private_key_configured) || (!pubKey && !cachedStatus.vapi_public_key_configured)) {
         alert('Both Vapi Private and Public Keys are required.');
         return;
     }
-    
+
     try {
         btnSaveConfig.disabled = true;
         const res = await fetch('/api/config', {
@@ -216,7 +230,9 @@ async function saveConfig() {
                 phone_number: phone,
                 google_calendar_id: googleCal,
                 smtp_email: smtpEmail,
-                smtp_password: smtpPassword
+                smtp_password: smtpPassword,
+                google_oauth_client_id: oauthCid,
+                google_oauth_client_secret: oauthSec
             })
         });
         const data = await res.json();
@@ -226,6 +242,33 @@ async function saveConfig() {
         alert('Failed to save config.');
     } finally {
         btnSaveConfig.disabled = false;
+    }
+}
+
+async function connectGoogleAccount() {
+    const btn = document.getElementById('btn-connect-google');
+    try {
+        if (googleOauthClientIdInput && googleOauthClientIdInput.value.trim()) {
+            await saveConfig();
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Starting...';
+        const res = await fetch('/api/auth/google/start');
+        const data = await res.json();
+        if (!data.success) {
+            alert('Failed to start OAuth: ' + data.message);
+            return;
+        }
+        if (data.redirect_uri) {
+            const uriSpan = document.getElementById('oauth-redirect-uri');
+            if (uriSpan) uriSpan.textContent = data.redirect_uri;
+        }
+        window.open(data.auth_url, '_blank', 'width=600,height=700');
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-brands fa-google"></i> Connect Google Account';
     }
 }
 
@@ -749,6 +792,11 @@ function setupEventListeners() {
     const btnUploadCredentials = document.getElementById('btn-upload-credentials');
     if (btnUploadCredentials) {
         btnUploadCredentials.onclick = uploadCredentials;
+    }
+
+    const btnConnectGoogle = document.getElementById('btn-connect-google');
+    if (btnConnectGoogle) {
+        btnConnectGoogle.onclick = connectGoogleAccount;
     }
     
     // Collapsible Settings Drawer

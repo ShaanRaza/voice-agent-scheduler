@@ -248,6 +248,22 @@
                 <button id="btn-upload-credentials" class="btn btn-secondary" style="width: 100%; margin-top: 5px;">
                     <i class="fa-solid fa-upload"></i> Upload Credentials
                 </button>
+
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                    <h4 style="margin-bottom: 8px; font-size: 14px;"><i class="fa-brands fa-google"></i> OAuth Client (for Shaan's Calendar)</h4>
+                    <p style="font-size: 11px; color: rgba(255,255,255,0.55); margin-bottom: 10px;">Required to authorize Shaan's account. Get these from Google Cloud Console → APIs & Services → Credentials → OAuth client (Web app type). Add <code id="oauth-redirect-uri">/api/auth/google/callback</code> as an authorized redirect URI.</p>
+                    <div class="form-group">
+                        <label for="google-oauth-client-id" style="font-size: 12px;">Google OAuth Client ID</label>
+                        <input type="text" id="google-oauth-client-id" placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" style="font-size: 12px;">
+                    </div>
+                    <div class="form-group">
+                        <label for="google-oauth-client-secret" style="font-size: 12px;">Google OAuth Client Secret</label>
+                        <input type="password" id="google-oauth-client-secret" placeholder="GOCSPX-..." autocomplete="off" style="font-size: 12px;">
+                    </div>
+                    <button id="btn-connect-google" class="btn" style="width: 100%; margin-top: 5px; background: rgba(66, 133, 244, 0.2); border: 1px solid #4285f4; color: #4285f4;">
+                        <i class="fa-brands fa-google"></i> Connect Google Account
+                    </button>
+                </div>
             </div>
             
             <div class="danger-zone" style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1);">

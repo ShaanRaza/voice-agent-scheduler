@@ -48,6 +48,8 @@ def init_config():
             "vapi_public_key": "",
             "phone_number": "",
             "google_calendar_id": "",
+            "google_oauth_client_id": "",
+            "google_oauth_client_secret": "",
             "assistant_id": ""
         }
         with open(CONFIG_FILE, "w") as f:
@@ -1015,6 +1017,8 @@ def api_status():
         "google_calendar_id": config.get("google_calendar_id", ""),
         "smtp_email": config.get("smtp_email", ""),
         "smtp_password_configured": bool(config.get("smtp_password")),
+        "google_oauth_client_id_configured": bool(config.get("google_oauth_client_id")),
+        "google_oauth_client_secret_configured": bool(config.get("google_oauth_client_secret")),
         "is_deployed": bool(config.get("assistant_id"))
     })
 
@@ -1033,11 +1037,18 @@ def api_config():
     config["phone_number"] = data.get("phone_number", "").strip()
     config["google_calendar_id"] = data.get("google_calendar_id", "").strip()
     config["smtp_email"] = data.get("smtp_email", "").strip()
-    
+
     smtp_pass = data.get("smtp_password", "").strip()
     if smtp_pass:
         config["smtp_password"] = smtp_pass
-        
+
+    oauth_cid = data.get("google_oauth_client_id", "").strip()
+    if oauth_cid:
+        config["google_oauth_client_id"] = oauth_cid
+    oauth_sec = data.get("google_oauth_client_secret", "").strip()
+    if oauth_sec:
+        config["google_oauth_client_secret"] = oauth_sec
+
     save_config(config)
     return jsonify({"success": True, "message": "Credentials updated successfully."})
 
@@ -1081,6 +1092,128 @@ def api_credentials_status():
         "google_credentials_uploaded": os.path.exists(creds_path),
         "oauth_token_uploaded": os.path.exists(oauth_path),
     })
+
+# ==========================================
+# Google OAuth User Authorization Flow
+# ==========================================
+
+OAUTH_SCOPES = ['https://www.googleapis.com/auth/calendar']
+OAUTH_FLOW_STATE = None
+
+@app.route("/api/auth/google/start")
+def api_auth_google_start():
+    global OAUTH_FLOW_STATE
+    config = get_config()
+    client_id = config.get("google_oauth_client_id", "").strip()
+    client_secret = config.get("google_oauth_client_secret", "").strip()
+
+    if not client_id or not client_secret:
+        return jsonify({
+            "success": False,
+            "message": "Google OAuth Client ID and Secret are not configured. Add them in Settings first."
+        }), 400
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except ImportError:
+        return jsonify({
+            "success": False,
+            "message": "google-auth-oauthlib is not installed."
+        }), 500
+
+    redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": [redirect_uri]
+        }
+    }
+
+    flow = Flow.from_client_config(client_config, scopes=OAUTH_SCOPES, redirect_uri=redirect_uri)
+    auth_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        prompt='consent'
+    )
+    OAUTH_FLOW_STATE = state
+    return jsonify({"success": True, "auth_url": auth_url, "redirect_uri": redirect_uri})
+
+
+@app.route("/api/auth/google/callback")
+def api_auth_google_callback():
+    global OAUTH_FLOW_STATE
+    config = get_config()
+    client_id = config.get("google_oauth_client_id", "").strip()
+    client_secret = config.get("google_oauth_client_secret", "").strip()
+
+    if not client_id or not client_secret:
+        return "Error: OAuth client not configured.", 400
+
+    try:
+        from google_auth_oauthlib.flow import Flow
+    except ImportError:
+        return "Error: google-auth-oauthlib not installed.", 500
+
+    redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
+    client_config = {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": [redirect_uri]
+        }
+    }
+
+    flow = Flow.from_client_config(
+        client_config,
+        scopes=OAUTH_SCOPES,
+        redirect_uri=redirect_uri,
+        state=OAUTH_FLOW_STATE
+    )
+
+    try:
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        return f"<h2>Authorization Failed</h2><p>{e}</p><p><a href='{PUBLIC_URL}'>Return to app</a></p>", 400
+
+    credentials = flow.credentials
+    token_data = {
+        "token": credentials.token,
+        "refresh_token": credentials.refresh_token,
+        "token_uri": credentials.token_uri,
+        "client_id": credentials.client_id,
+        "client_secret": credentials.client_secret,
+        "scopes": list(credentials.scopes) if credentials.scopes else OAUTH_SCOPES,
+        "type": "authorized_user"
+    }
+
+    target_dir = DATA_DIR if DATA_DIR != "." else "."
+    target_path = os.path.join(target_dir, "oauth_token.json")
+    try:
+        with open(target_path, "w") as f:
+            json.dump(token_data, f, indent=2)
+        print(f"OAuth token saved to {target_path}")
+    except Exception as e:
+        return f"<h2>Failed to save token</h2><p>{e}</p>", 500
+
+    OAUTH_FLOW_STATE = None
+    return f"""<!DOCTYPE html>
+<html><head><title>Google Connected</title>
+<style>body{{font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+.card{{background:rgba(0,230,118,0.1);border:1px solid #00e676;padding:40px;border-radius:12px;text-align:center;max-width:500px}}
+h2{{color:#00e676;margin:0 0 15px}}
+a{{display:inline-block;margin-top:20px;padding:10px 20px;background:#00e676;color:#000;border-radius:6px;text-decoration:none;font-weight:600}}</style>
+</head><body><div class="card">
+<h2>Google Account Connected</h2>
+<p>Your Google Calendar authorization has been saved. You can close this tab and return to the app.</p>
+<a href="{PUBLIC_URL}">Return to Dashboard</a>
+</div></body></html>"""
 
 @app.route("/api/calendar")
 def api_calendar():

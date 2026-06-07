@@ -5,5 +5,7 @@ config.json
 calendar_store.json
 contacts_store.json
 logs_store.json
+google_credentials.json
+oauth_token.json
 .system_generated/
 *.log

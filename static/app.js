@@ -895,7 +895,7 @@ function renderContacts(contacts) {
     if (!body) return;
     
     if (!contacts || contacts.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" class="no-leads">No leads saved yet. Try booking an interview!</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="no-leads" data-label="">No leads saved yet. Try booking an interview!</td></tr>';
         return;
     }
     
@@ -918,12 +918,12 @@ function renderContacts(contacts) {
         }
         
         row.innerHTML = `
-            <td><strong>${c.name}</strong></td>
-            <td>${emailVal}</td>
-            <td>${phoneVal}</td>
-            <td><span class="badge date-badge">${c.date}</span></td>
-            <td><span class="badge time-badge">${c.time}</span></td>
-            <td>${inviteLinkHTML}</td>
+            <td data-label="Name"><strong>${c.name}</strong></td>
+            <td data-label="Email">${emailVal}</td>
+            <td data-label="Phone">${phoneVal}</td>
+            <td data-label="Date"><span class="badge date-badge">${c.date}</span></td>
+            <td data-label="Time"><span class="badge time-badge">${c.time}</span></td>
+            <td data-label="Invite">${inviteLinkHTML}</td>
         `;
         body.appendChild(row);
     });

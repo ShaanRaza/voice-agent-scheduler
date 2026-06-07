@@ -1249,6 +1249,17 @@ a{{display:inline-block;margin-top:20px;padding:10px 20px;background:#00e676;col
 <a href="{PUBLIC_URL}">Return to Dashboard</a>
 </div></body></html>"""
 
+@app.route("/api/debug/oauth-token", methods=["GET"])
+def api_debug_oauth_token():
+    token_json = get_secret("oauth_token_json")
+    if not token_json:
+        return jsonify({"configured": False, "error": "No OAuth token in memory. Click 'Connect Google Account' first."}), 404
+    try:
+        parsed = json.loads(token_json) if isinstance(token_json, str) else token_json
+        return jsonify({"configured": True, "token_json": parsed})
+    except Exception as e:
+        return jsonify({"configured": True, "raw": token_json, "parse_error": str(e)}), 200
+
 @app.route("/api/calendar")
 def api_calendar():
     return jsonify(get_calendar())

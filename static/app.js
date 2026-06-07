@@ -94,14 +94,14 @@ async function fetchStatus() {
         serverStatusDot.classList.add('active');
         serverStatusText.textContent = 'Server: Online';
         
-        // Update Tunnel Status
+        // Update Public URL / Webhook Status
         if (tunnelStatusDot && tunnelStatusText) {
-            if (status.tunnel_url) {
+            if (status.public_url) {
                 tunnelStatusDot.classList.add('active');
-                tunnelStatusText.innerHTML = `Tunnel: <a href="${status.tunnel_url}" target="_blank" class="highlight">${status.tunnel_url.replace('https://', '')}</a>`;
+                tunnelStatusText.innerHTML = `Webhook: <a href="${status.public_url}" target="_blank" class="highlight">${status.public_url.replace('https://', '').replace('http://', '')}</a>`;
             } else {
                 tunnelStatusDot.classList.remove('active');
-                tunnelStatusText.textContent = 'Tunnel: Connecting...';
+                tunnelStatusText.textContent = 'Webhook: Not Configured';
             }
         }
         

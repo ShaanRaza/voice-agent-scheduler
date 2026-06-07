@@ -5,7 +5,6 @@ import sys
 import time
 import datetime
 import threading
-import subprocess
 import requests
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -29,9 +28,14 @@ LOGS_FILE = os.path.join(DATA_DIR, "logs_store.json")
 CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 CONTACTS_FILE = os.path.join(DATA_DIR, "contacts_store.json")
 
-# In-memory states
-tunnel_url = None
-tunnel_process = None
+# Public URL where this app is reachable (used as Vapi webhook target).
+# Set PUBLIC_URL in your Render environment. Falls back to RENDER_EXTERNAL_URL
+# (auto-set by Render) and finally to the Vapi webhook path on localhost.
+PUBLIC_URL = (
+    os.environ.get("PUBLIC_URL")
+    or os.environ.get("RENDER_EXTERNAL_URL")
+    or "http://localhost:" + os.environ.get("PORT", "8080")
+).rstrip("/")
 
 # ==========================================
 # Persistent Storage Handlers
@@ -987,63 +991,6 @@ def handle_book_slot(interviewer_name, date_str, time_str, interviewer_email=Non
     return f"Success! Interview has been booked for {interviewer_name} on {date_str} at {matched_slot['time']}.{invite_msg}"
 
 # ==========================================
-# SSH Reverse Tunneling (Pinggy)
-# ==========================================
-
-def run_tunnel():
-    global tunnel_url, tunnel_process
-    print("Initializing SSH Reverse Tunnel via Pinggy on port 8080...")
-    
-    # We spawn SSH command to pinggy
-    # StrictHostKeyChecking=no, UserKnownHostsFile=/dev/null to automatically accept key fingerprint
-    ssh_cmd = [
-        "ssh",
-        "-p", "443",
-        "-o", "StrictHostKeyChecking=no",
-        "-o", "UserKnownHostsFile=/dev/null",
-        "-R0:localhost:8080",
-        "free.pinggy.io"
-    ]
-    
-    try:
-        tunnel_process = subprocess.Popen(
-            ssh_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
-        )
-        
-        # Read lines from standard out to find the tunnel link
-        for line in tunnel_process.stdout:
-            print(f"[Pinggy SSH] {line.strip()}")
-            # Check for pinggy URL pattern e.g., https://abc-123.free.pinggy.link or run.pinggy-free.link
-            match = re.search(r"https://[a-zA-Z0-9.-]+pinggy[a-zA-Z0-9.-]+\.link", line)
-            if match:
-                tunnel_url = match.group(0)
-                print("\n========================================================")
-                print(f"  TUNNEL ESTABLISHED: {tunnel_url}")
-                print("========================================================\n")
-                
-                # Check for auto-deploy on startup if credentials exist
-                try:
-                    config = get_config()
-                    private_key = config.get("vapi_private_key")
-                    if private_key:
-                        print("Credentials detected in config.json. Auto-deploying assistant with new tunnel URL...")
-                        new_id, phone_msg = deploy_assistant_to_vapi(private_key, tunnel_url, config)
-                        print(f"Auto-deployed successfully! ID: {new_id}. {phone_msg}")
-                except Exception as ex:
-                    print(f"Auto-deployment on startup failed: {ex}")
-                
-    except Exception as e:
-        print(f"Error starting Pinggy Tunnel: {e}")
-
-def start_tunnel_thread():
-    t = threading.Thread(target=run_tunnel, daemon=True)
-    t.start()
-
-# ==========================================
 # REST API Endpoints
 # ==========================================
 
@@ -1059,7 +1006,7 @@ def serve_static(path):
 def api_status():
     config = get_config()
     return jsonify({
-        "tunnel_url": tunnel_url,
+        "public_url": PUBLIC_URL,
         "vapi_private_key_configured": bool(config.get("vapi_private_key")),
         "vapi_public_key_configured": bool(config.get("vapi_public_key")),
         "vapi_public_key": config.get("vapi_public_key"),
@@ -1201,7 +1148,7 @@ def download_contacts():
     response.headers["Content-type"] = "text/csv; charset=utf-8"
     return response
 
-def deploy_assistant_to_vapi(private_key, current_tunnel_url, config):
+def deploy_assistant_to_vapi(private_key, public_url, config):
     headers = {
         "Authorization": f"Bearer {private_key}",
         "Content-Type": "application/json"
@@ -1306,7 +1253,7 @@ Behavioral Guidelines:
         "name": "Shaan's AI Assistant",
         "firstMessage": "Hi! I'm Shaan's AI representative. Shaan is a Data Analyst and Business Analyst with experience in analytics, Python, SQL, automation, and data-driven problem solving. I'm here to answer questions about his background, projects, and skills, and can also help schedule an interview. Who do I have the pleasure of speaking with?",
         "firstMessageInterruptionsEnabled": True,
-        "serverUrl": f"{current_tunnel_url}/api/webhook",
+        "serverUrl": f"{public_url}/api/webhook",
         "model": {
             "provider": "openai",
             "model": "gpt-4o-mini",
@@ -1336,7 +1283,7 @@ Behavioral Guidelines:
                         }
                     },
                     "server": {
-                        "url": f"{current_tunnel_url}/api/webhook"
+                        "url": f"{public_url}/api/webhook"
                     }
                 },
                 {
@@ -1372,7 +1319,7 @@ Behavioral Guidelines:
                         }
                     },
                     "server": {
-                        "url": f"{current_tunnel_url}/api/webhook"
+                        "url": f"{public_url}/api/webhook"
                     }
                 }
             ]
@@ -1467,11 +1414,8 @@ def api_deploy():
     if not private_key:
         return jsonify({"success": False, "message": "Vapi Private API Key is not configured."}), 400
         
-    if not tunnel_url:
-        return jsonify({"success": False, "message": "Public webhook tunnel is not yet active. Please wait a moment."}), 500
-        
     try:
-        new_assistant_id, phone_msg = deploy_assistant_to_vapi(private_key, tunnel_url, config)
+        new_assistant_id, phone_msg = deploy_assistant_to_vapi(private_key, PUBLIC_URL, config)
         return jsonify({
             "success": True, 
             "message": f"Assistant successfully deployed with ID: {new_assistant_id}.{phone_msg}",
@@ -1751,9 +1695,7 @@ if __name__ == "__main__":
     init_logs()
     init_contacts()
     
-    # Start the SSH Reverse Tunnel
-    start_tunnel_thread()
-    
     # Start Flask Server
-    print("Starting Flask application on port 8080...")
-    app.run(host="0.0.0.0", port=8080, debug=False)
+    port = int(os.environ.get("PORT", 8080))
+    print(f"Starting Flask application on port {port}...")
+    app.run(host="0.0.0.0", port=port, debug=False)

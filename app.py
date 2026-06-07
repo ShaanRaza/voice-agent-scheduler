@@ -1098,7 +1098,23 @@ def api_credentials_status():
 # ==========================================
 
 OAUTH_SCOPES = ['https://www.googleapis.com/auth/calendar']
-OAUTH_FLOW_STATE = None
+# Maps OAuth state token -> code_verifier, so the callback can complete PKCE.
+OAUTH_FLOW_STATE = {}
+
+
+def _build_oauth_client_config(config):
+    redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
+    return {
+        "web": {
+            "client_id": config.get("google_oauth_client_id", "").strip(),
+            "client_secret": config.get("google_oauth_client_secret", "").strip(),
+            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": [redirect_uri]
+        }
+    }, redirect_uri
+
 
 @app.route("/api/auth/google/start")
 def api_auth_google_start():
@@ -1121,25 +1137,14 @@ def api_auth_google_start():
             "message": "google-auth-oauthlib is not installed."
         }), 500
 
-    redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
-    client_config = {
-        "web": {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "redirect_uris": [redirect_uri]
-        }
-    }
-
+    client_config, redirect_uri = _build_oauth_client_config(config)
     flow = Flow.from_client_config(client_config, scopes=OAUTH_SCOPES, redirect_uri=redirect_uri)
     auth_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
         prompt='consent'
     )
-    OAUTH_FLOW_STATE = state
+    OAUTH_FLOW_STATE[state] = flow.code_verifier
     return jsonify({"success": True, "auth_url": auth_url, "redirect_uri": redirect_uri})
 
 
@@ -1158,27 +1163,22 @@ def api_auth_google_callback():
     except ImportError:
         return "Error: google-auth-oauthlib not installed.", 500
 
-    redirect_uri = f"{PUBLIC_URL}/api/auth/google/callback"
-    client_config = {
-        "web": {
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "auth_uri": "https://accounts.google.com/o/oauth2/v2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "redirect_uris": [redirect_uri]
-        }
-    }
+    state = request.args.get("state")
+    code_verifier = OAUTH_FLOW_STATE.pop(state, None) if state else None
 
+    client_config, redirect_uri = _build_oauth_client_config(config)
     flow = Flow.from_client_config(
         client_config,
         scopes=OAUTH_SCOPES,
         redirect_uri=redirect_uri,
-        state=OAUTH_FLOW_STATE
+        state=state
     )
 
     try:
-        flow.fetch_token(authorization_response=request.url)
+        if code_verifier:
+            flow.fetch_token(authorization_response=request.url, code_verifier=code_verifier)
+        else:
+            flow.fetch_token(authorization_response=request.url)
     except Exception as e:
         return f"<h2>Authorization Failed</h2><p>{e}</p><p><a href='{PUBLIC_URL}'>Return to app</a></p>", 400
 
@@ -1202,7 +1202,6 @@ def api_auth_google_callback():
     except Exception as e:
         return f"<h2>Failed to save token</h2><p>{e}</p>", 500
 
-    OAUTH_FLOW_STATE = None
     return f"""<!DOCTYPE html>
 <html><head><title>Google Connected</title>
 <style>body{{font-family:system-ui;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}

@@ -1,0 +1,11 @@
+{
+  "client_id": "297256466108-062o7tcd14quq0gi5nvu4otgjmeh8n39.apps.googleusercontent.com",
+  "client_secret": "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",
+  "refresh_token": "1//0gaFXIrYXYQJkCgYIARAAGBASNwF-L9Irqz07fEyGIQywzwPq3DzXxeWygry3_7kJ8ezvGAjLxkk7CUUiedAIUZYJZ77JXUmn--k",
+  "token": "ya29.a0AT3oNZ_12weM0h84BOenykZECAc-OcbChpe7LFpnA2VYzh5X7WRLLDwpkK7O1PI8QBM6MsLO2sQk1frFudhOAGR8tEW4y2M6BKRPx3p8heHwC3h8epuG8rWAMr120CDz2g0f4FPKuWFFELJn_3B8bXNIOJu0QA-vttOO8bGS4Q0jaX2YE7yoMRDbnsWPkGX3XcxmcxnqaCgYKATwSARQSFQHGX2Mi6owzPfhMPpJKONNAb_JcXw0207",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "scopes": [
+    "https://www.googleapis.com/auth/calendar"
+  ],
+  "type": "authorized_user"
+}

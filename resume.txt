@@ -1,0 +1,83 @@
+Candidate Name: Shaan Raza
+Phone: +91-8826112919
+Email: shaanraza0007@gmail.com
+Location: New Delhi, India
+LinkedIn: https://www.linkedin.com/in/shaanraza
+GitHub: https://github.com/ShaanRaza
+
+Professional Summary:
+Analyst with experience in workflow automation, sustainability analytics, and market intelligence projects using SQL, Python, and Power BI. Skilled in translating business requirements and large datasets into actionable insights and scalable analytical solutions.
+
+=========================================
+1. SKILLS & EXPERTISE
+=========================================
+- Languages & Analytics: Python (Pandas, NumPy, Scikit-Learn), SQL (Joins, CTEs, Window Functions, SQL Server), Excel, Statistical Analysis, Regression Analysis, Funnel Analysis, Web Scraping (Selenium, BeautifulSoup)
+- Visualization & BI: Power BI (PL-300 Certified), Tableau, Matplotlib, Seaborn
+- Data Platforms & Tools: MySQL, Snowflake, Hadoop, Hive, Jupyter Notebook, openLCA
+- Other: Kubernetes (Basics)
+
+=========================================
+2. PROFESSIONAL EXPERIENCE & INTERNSHIPS
+=========================================
+Crystal Technology Services - Business Analyst Intern, New Delhi (Hybrid)
+Dec 2025 - Present
+- Managed multiple project lifecycle phases including pre-planning, discovery, QA validation, and UAT sign-off for workflow automation implementations.
+- Gathered and translated business requirements into functional documentation including BRDs, FRDs, use case documents, user stories, SLA metrics, and reporting requirements.
+- Designed process flow diagrams and customer journey workflows using Lucidchart for IVR, voicebot, and chat-based automation systems.
+- Analyzed operational KPIs (AHT, SLA, CSAT, FRT) and interaction data to identify bottlenecks, optimize workflows, and improve customer experience.
+- Collaborated with enterprise clients (HDFC ERGO, Boat, Samsung) and cross-functional teams to deliver scalable solutions aligned with business objectives.
+
+Carbon Crunch - Data Analyst Intern, Noida (Onsite)
+June 2025 - Sep 2025
+- Analyzed scope 1, 2 and 3 GHG emissions data across multiple regions using SQL and Python to identify trends, inconsistencies, and reporting gaps.
+- Performed data cleaning, transformation, and validation on large sustainability datasets using Pandas and SQL to improve reporting accuracy and data consistency.
+- Automated CPCB OCEMS data extraction and preprocessing workflows using Python, reducing manual effort and improving operational efficiency.
+- Conducted exploratory data analysis and developed dashboards to monitor emissions trends, operational KPIs, and sustainability metrics.
+- Collaborated with cross-functional teams on LCA and emissions assessment projects, supporting data-driven sustainability reporting and decision making.
+
+Pregrad - Business Development Intern, Noida (Onsite)
+Dec 2024 - Jan 2025
+- Generated and qualified leads while maintaining the sales pipeline, contributing to revenue generation exceeding INR 50,000.
+- Engaged with 1000+ customers to understand client requirements, strengthen relationships, and support business outreach initiatives.
+- Analyzed sales and customer engagement trends using Excel to identify high-performing regions and improve targeted sales strategies by 15%.
+
+=========================================
+3. REPOSITORIES & KEY PROJECTS
+=========================================
+- Zomato_Dataset_Analysis (SQL, Pandas):
+  Zomato Data Exploration and Analysis using SQL Server and Pandas. Built a restaurant market analysis model to identify high-demand, low-supply cities and localities for expansion opportunities. Used window functions, CTEs, and joins to rank localities.
+- Automation-Code-for-RTDMS (Python, Selenium, BeautifulSoup):
+  Automated web scraping of India's RTDMS (Real-Time Data Monitoring System) portal using Selenium to handle dynamically loaded content and BeautifulSoup to parse HTML, extracting state- and category-wise data into structured Excel files.
+- EPD-Models-openLCA (openLCA, EXIOBASE, Ecoinvent):
+  Created LCA models using EXIOBASE and Ecoinvent databases to generate ISO 14025 and EN 15804 compliant Environmental Product Declarations (EPDs) for major clients like MSSL Group and Raymond.
+- PowerBI-Dashboards (Power BI):
+  A collection of interactive Power BI dashboards demonstrating data analysis and visualisations across multiple business domains (including Scope 1-3 emissions tracking, DAX metrics, cost per ton of CO2).
+- Case-Competitions:
+  Secured 3rd position among 380+ participants in Jamia Case Challenge for developing a business solution for SweepIt (now Pronto), a rapidly growing startup.
+- FMCG Customer Churn Prediction (Python, NumPy, Pandas, Scikit-Learn, XGBoost):
+  Analyzed 10,000+ transaction records, performed RFM Analysis, built Scikit-Learn & XGBoost classification models (achieved ROC-AUC of 0.92+, F1-score of 0.85+), and applied K-Means clustering for customer segmentation.
+
+=========================================
+4. PERSONAL INTERESTS & HOBBIES (GUITAR & MUSIC)
+=========================================
+- Guitar & Music: Shaan is highly passionate about music and playing the guitar. He plays both acoustic and electric guitar, covering a variety of genres like rock, blues, and fingerstyle acoustic arrangements. He enjoys playing guitar in his free time as a creative way to unwind after coding and data analysis sessions.
+- Academic Achievements: Solved 150+ SQL queries across LeetCode, HackerRank, and DataLemur.
+
+=========================================
+5. EDUCATION
+=========================================
+- BTech in Electronics & Communication Engineering from Jamia Millia Islamia, New Delhi (CGPA: 8.2/10) | 2022 - 2026
+- Class XII from Summer Fields School, New Delhi (95.4%) | 2021
+- Class X from Summer Fields School, New Delhi (93%) | 2019
+
+=========================================
+6. INTERVIEW RESPONSE GUIDELINES (AI BEHAVIORAL PREFERENCES)
+=========================================
+- Why Shaan is a fit for the role:
+  "Shaan has a strong blend of data analysis and workflow automation skills. He has built automated scrapers using Selenium, designed voicebot and IVR customer journey flows during his Crystal Technology internship, and engineered SQL models for market expansion. His experience with voice-native tools and APIs makes him a fantastic candidate."
+- What are Shaan's strengths?
+  "He is highly self-driven, detail-oriented, and excels at solving complex data problems. He has solved over 150+ SQL problems and has secured podium finishes in case challenges."
+- What does Shaan do in his free time?
+  "He enjoys playing his guitar. He covers various styles like rock and blues on acoustic and electric, which helps him recharge creatively."
+- How to handle unknown questions:
+  "I don't have that specific details about Shaan's experience, but I can ask him to follow up with you on this. Would you like me to note this down?"

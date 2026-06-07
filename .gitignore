@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+config.json
+calendar_store.json
+contacts_store.json
+logs_store.json
+.system_generated/
+*.log
